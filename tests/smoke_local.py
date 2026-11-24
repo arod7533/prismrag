@@ -1,14 +1,27 @@
-"""Optional integration test requiring local Ollama models."""
+"""Optional integration check requiring Ollama and the installed local models."""
 from pathlib import Path
+from unittest.mock import patch
 from prismrag.pipeline import build_index, answer
-from prismrag.evaluation import evaluate, read_cases
+from prismrag.automatic import benchmark, judge_turn, measurement_rows
 from prismrag.visualization import embedding_plot
-index = build_index(sorted(Path('data/corpus').glob('*.md')), 'nomic-embed-text')
-result, found, query, latency = answer(index, 'What does chunk overlap do?', 'qwen3.5:9b', 2)
+
+paths = sorted(Path('data/corpus').glob('*.md'))
+index = build_index(paths, 'nomic-embed-text')
+assert len(paths) == 24
+print('Indexed',len(index.chunks),'chunks from',len(paths),'documents',flush=True)
+with patch('prismrag.pipeline.OllamaEmbeddings.embed_documents', side_effect=AssertionError('Re-embedded unchanged corpus')):
+    reused = build_index(paths, 'nomic-embed-text')
+assert index.fingerprint == reused.fingerprint
+baseline = benchmark(index, 'data/eval.json', 4)
+assert baseline['count'] == 20
+print('Persistent reuse and automatic benchmark passed:',baseline['means'],flush=True)
+question = baseline['cases'][0]['question']
+result, found, query, seconds = answer(index, question, 'qwen3.5:9b', 4)
 assert result and found
-assert found[0][1].metadata['source'] == 'retrieval.md'
+assert 'pricing-current.md' in [d.metadata['source'] for _,d,_ in found]
 assert len(embedding_plot(index, query, found).data) > 1
-rows, path = evaluate(index, read_cases('data/eval.json', index)[:1], 'qwen3.5:9b', 'qwen3.5:9b', 2, ['Recall@k', 'Faithfulness', 'Latency'])
-assert rows[0]['Recall@k'] == 1
-assert rows[0]['Faithfulness'] is not None, rows
-print('Local integration passed:',len(index.chunks),'chunks; answer:',result,'; report:',path)
+turn = {'question':question,'answer':result,'seconds':seconds,'context':[d.page_content for _,d,_ in found]}
+judgments = judge_turn(turn, 'qwen3.5:9b')
+assert all(0 <= getattr(judgments,key).score <= 1 for key in ['faithfulness','answer_relevance','context_relevance'])
+assert len(measurement_rows(baseline,turn,judgments)) == 9
+print('Local answer, vector plot and automatic quality checks passed:',result,flush=True)

@@ -8,6 +8,12 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
+from langchain_chroma import Chroma
+from ollama import Client
+from threading import RLock
+
+INDEX_LOCK = RLock()
+DB_PATH = Path(__file__).resolve().parents[1] / ".chroma"
 
 @dataclass
 class Index:
@@ -18,6 +24,7 @@ class Index:
     chunk_size: int
     overlap: int
     fingerprint: str
+    store: object
 
 def load_documents(paths):
     docs = []
@@ -52,15 +59,33 @@ def build_index(paths, model, chunk_size=700, overlap=100):
     if not chunks:
         raise ValueError("No extractable text. Scanned PDFs need OCR first.")
     embedder = OllamaEmbeddings(model=model, base_url="http://localhost:11434")
-    vectors = normalize(embedder.embed_documents([d.page_content for d in chunks]))
     fingerprint = hashlib.sha256(repr([(d.page_content, d.metadata) for d in chunks]).encode()).hexdigest()
-    return Index(chunks, vectors, embedder, model, chunk_size, overlap, fingerprint)
+    installed = Client(host="http://localhost:11434").list().models
+    digest = next((entry.digest for entry in installed if entry.model in {model, model + ":latest"}), None)
+    if digest is None:
+        raise ValueError(f"Install the embedding model with: ollama pull {model}")
+    key = hashlib.sha256((fingerprint + model + digest).encode()).hexdigest()[:40]
+    ids = [str(i) for i in range(len(chunks))]
+    for i, chunk in enumerate(chunks):
+        chunk.metadata["chunk_id"] = i
+    with INDEX_LOCK:
+        store = Chroma(collection_name="prismrag-" + key, embedding_function=embedder,
+            persist_directory=str(DB_PATH), collection_configuration={"hnsw": {"space": "cosine"}})
+        existing = store.get(include=[])["ids"]
+        missing = [i for i in range(len(chunks)) if str(i) not in set(existing)]
+        if missing:
+            store.add_documents([chunks[i] for i in missing], ids=[str(i) for i in missing])
+        saved = store.get(ids=ids, include=["embeddings"])
+        by_id = dict(zip(saved["ids"], saved["embeddings"]))
+        vectors = normalize([by_id[i] for i in ids])
+    return Index(chunks, vectors, embedder, model, chunk_size, overlap, fingerprint, store)
 
 def retrieve(index, question, k):
     query = normalize([index.embedder.embed_query(question)])[0]
-    scores = index.vectors @ query
-    ranks = np.argsort(-scores, kind="stable")[:int(k)]
-    return [(int(i), index.chunks[i], float(scores[i])) for i in ranks], query
+    results = index.store.similarity_search_by_vector_with_relevance_scores(
+        query.tolist(), k=min(int(k), len(index.chunks)))
+    found = [(int(doc.metadata["chunk_id"]), doc, float(1 - distance)) for doc, distance in results]
+    return found, query
 
 def answer(index, question, model, k):
     start = perf_counter()

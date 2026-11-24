@@ -1,54 +1,52 @@
 # PrismRAG
 **See the evidence. Measure the answer.**
 
-A portfolio RAG lab built with Python, LangChain, Gradio, and local Ollama models.
+A local Python, LangChain, Gradio, Ollama and Chroma RAG portfolio project.
 
-## Run locally
-Install [uv](https://docs.astral.sh/uv/) and [Ollama](https://ollama.com/), then:
+## Run
+Install [uv](https://docs.astral.sh/uv/) and [Ollama](https://ollama.com/), start Ollama, then:
 
 ```sh
-ollama serve
-# In another terminal:
 ollama pull qwen3.5:9b
 ollama pull nomic-embed-text
 uv sync --locked --python 3.12
 uv run python app.py
 ```
-Open http://127.0.0.1:7860. Open Documents in Chat and choose Use sample documents, then ask a question. Upload your own files and choose Prepare documents to replace the sample corpus. Model downloads require internet; inference stays local. You can substitute installed Ollama models in the settings. First inference can be slow.
+Open http://127.0.0.1:7860. Documents load and vectorize automatically. Ask a question in Chat; Measurements updates automatically. No uploads, metric selections, datasets or evaluation buttons are required. First startup downloads no models automatically; the two pull commands install them first. Initial indexing takes longer than reopening the persisted collection.
 
-## Features
-- Two-tab interface: clean Chat beside readable context, and Measurements for evaluation, settings, experiment comparisons, latency, and vector visualization.
-- TXT, Markdown, text-based PDF ingestion; configurable chunking and exact cosine retrieval.
-- Measurements tab with selectable metric definitions, per-case results, judge reasons, aggregate means, and downloadable JSON runs.
-- PCA embedding atlas colored by source, with retrieved chunks and projected query.
-- Static GitHub Pages showcase and separate Python CI.
+## Included knowledge base
+`data/corpus/` contains 24 fictional Northstar Analytics documents covering product, current and archived pricing, billing, support, security, permissions, connectors, incidents and employee operations. It includes overlapping policies and historical distractors. `data/eval.json` supplies 20 curated demonstration questions with reference answers and document-level source labels. The original three tutorial documents remain in `data/tutorial/` and are not indexed by the app. All company details are synthetic and clearly marked. See `data/CORPUS.md`.
 
-## Architecture
-Documents → LangChain recursive character splitter → Ollama embeddings → normalized in-memory NumPy index → cosine top-k → LangChain prompt → ChatOllama → cited response.
+## Two tabs
+**Chat** has a conversation, a message box and readable source passages side by side. Each message retrieves independently and asks the local model for a cited answer.
 
-The exact index is intentionally simple and inspectable for a small portfolio corpus. It is rebuilt per browser session, does not persist private document contents, and is not intended for millions of chunks. Evaluation exports in `runs/` contain question, reference, answer, filenames, corpus hash, model names, settings, scores and judge reasons. They are gitignored; review before sharing. Model tags are mutable: record model digests and machine details for strict reproducibility. Changing chunk or embedding settings requires rebuilding the index. Each chat question is retrieved independently.
+**Measurements** is a read-only dashboard: every evaluation is listed with a result and explanation, plus corpus counts, embedding dimensions, retrieval similarities and the vector plot. There are no configuration or evaluation controls.
 
-## Evaluation practice
-Upload a JSON array matching `data/eval.json`. Each case requires `question`, `reference`, and a nonempty `relevant_sources` list matching indexed filenames. Labels are source-level and repeated chunks are deduplicated for retrieval scoring. Metrics use the number of distinct retrieved sources as the precision denominator. Add chunk-level graded labels for a more demanding benchmark.
+On startup, the app embeds and retrieves the 20 labeled development questions, then computes document-level Precision@k, Recall@k, MRR and binary nDCG@k. Duplicate chunks from one document count once. These are retrieval benchmark means, not scores for an unlabeled chat question. Partial source labels can miss other useful evidence.
 
-Deterministic: Precision@k, Recall@k, MRR, binary nDCG@k, answer token F1, and retrieval-plus-generation latency. Optional local LLM judge: faithfulness, answer relevance, context relevance. Judge failures remain null, with success counts in aggregates. These are custom transparent evaluators, not a claim of RAGAS equivalence.
+After a chat answer, latency and latest retrieval update immediately; faithfulness, answer relevance and context relevance are scored automatically in one structured local judge call. The response appears before judging finishes. The same model answers and judges, so judge scores have correlated bias and require human spot checks. Failed judge calls show unavailable rather than zero. Token F1 is calculated only when the chat question exactly matches a bundled labeled question (ignoring case and outside whitespace); other questions show no reference. F1 misses valid paraphrases and does not prove factuality. Scores range 0–1; latency is seconds for retrieval plus answer generation, excluding judging/indexing.
 
-Start with a human-labeled development set, tune chunk size/overlap/k, and compare downloaded runs with the same corpus hash. Reserve a held-out test set and use a separate stronger judge. Inspect unsupported claims and missing evidence manually. The three bundled cases are smoke data only; no performance results are fabricated. PCA colors and clusters do not prove embedding quality. No automatic citation validity or safety guarantee is implied.
+Reports save automatically to gitignored `runs/`. They contain the actual question, answer, retrieved evidence, scores, model names and corpus hash. Review before sharing. The benchmark set is synthetic development data, not an independent held-out test set. No scores are fabricated. Models can cite incorrectly or follow injected document instructions despite prompt separation.
 
-## GitHub and Pages
-GitHub Pages cannot run Gradio, Python, or Ollama. `docs/` is a static showcase explaining the real application; it does not pretend to provide live inference. For a live public app, provision a backend with model resources, authentication, quotas, and TLS; keep Ollama private. This is a local single-user app by default.
+## Vector database and pipeline
+Documents → LangChain recursive character chunks → Ollama embeddings → **persistent local Chroma** → cosine nearest-neighbor retrieval → LangChain prompt → ChatOllama answer.
 
-Create an empty GitHub repository called `prismrag`, then run:
+Chroma collections are stored in gitignored `.chroma/`, keyed by the corpus/chunk fingerprint, embedding model name and installed model digest. Reopening unchanged data reuses stored vectors; changed data/model identity creates a different collection. Missing embeddings in an interrupted build are resumed. Chroma performs retrieval; NumPy normalizes stored vectors for the PCA display. Collections accumulate until removed manually; do not commit the database. This embedded single-process design is intended for a small local showcase, not a multi-worker production service.
 
-```sh
-git remote add origin https://github.com/YOUR_USERNAME/prismrag.git
-git push -u origin main
-```
-In repository Settings → Pages → Source choose **GitHub Actions**. The included workflow publishes `docs/`. The Python workflow tests independently and does not need model downloads.
+Color in the PCA plot identifies document source; symbols highlight retrieved chunks and a star marks the query. PCA is lossy; the title shows variance retained. Visual clustering does not prove retrieval quality. Model tags can change; embedding digests prevent reusing a collection with changed embedding weights. Answer-model digests/hardware are not yet captured in reports, so reports are not a strict reproducibility guarantee.
 
-## Validation
+The app uses `qwen3.5:9b`, `nomic-embed-text`, 700-character chunks, 100-character overlap and top-k 4. Developers can change these constants in `app.py` and pipeline defaults. Restart after corpus changes. Loading state is shared through a process cache; chat and latest measurements are browser-session state. Baseline retrieval evaluations repeat per browser load, but document embeddings persist.
+
+## Hosting
+[Repository](https://github.com/arod7533/prismrag) · [Static showcase](https://arod7533.github.io/prismrag/)
+
+GitHub Pages serves the static `docs/` showcase; it cannot execute Python or Ollama. The live Gradio app runs locally. A public live demo requires a separately provisioned backend with authentication, resource limits and TLS. Keep Ollama private. The app binds to localhost. Document text and model inference stay local by default; package/model installation requires network access.
+
+## Checks
 ```sh
 uv run pytest -q
 uv run python -c "from app import create_app; create_app()"
+# Requires installed models and running Ollama:
+uv run python tests/smoke_local.py
 ```
-Retrieval metric unit tests run without Ollama. Full integration requires a running Ollama instance with the selected embedding, answer and judge models. Documents are untrusted evidence; prompt separation reduces but does not eliminate prompt injection. Bind locally and do not upload sensitive files to an exposed instance.
+CI runs model-free metric and automation checks plus UI construction. Integration tests require local models.

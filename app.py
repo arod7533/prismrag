@@ -1,150 +1,123 @@
+from functools import lru_cache
 from pathlib import Path
+import html
 import gradio as gr
-import pandas as pd
 from prismrag.pipeline import build_index, answer
-from prismrag.metrics import METRICS
-from prismrag.evaluation import read_cases, evaluate
+from prismrag.automatic import benchmark, measurement_rows, waiting_rows, judge_turn, save_turn
 from prismrag.visualization import embedding_plot
 
 ROOT = Path(__file__).parent
+ANSWER_MODEL = "qwen3.5:9b"
+EMBEDDING_MODEL = "nomic-embed-text"
+K = 4
+EMPTY_CONTEXT = "Passages used to answer your question will appear here."
+CSS = """
+.gradio-container { max-width: 1480px !important; }
+#context-panel { height: 520px; overflow-y: auto; padding: 20px; }
+#context-panel h3 { color: #c084fc; }
+#context-passages { line-height: 1.7; overflow-wrap: anywhere; }
+@media (max-width: 768px) { #context-panel { height: 360px; } }
+"""
 
-def explain(selected):
-    return "\n\n".join(f"**{name}** — {METRICS[name]}" for name in selected)
+@lru_cache(maxsize=1)
+def load_corpus():
+    paths = sorted(p for p in (ROOT / "data/corpus").iterdir() if p.suffix.lower() in {".md", ".txt", ".pdf"})
+    index = build_index(paths, EMBEDDING_MODEL)
+    return index
 
-def index_files(paths, embedding, size, overlap):
+def initialize():
     try:
-        index = build_index(paths, embedding, int(size), int(overlap))
-        plot = embedding_plot(index) if len(index.chunks) > 1 else None
-        return index, f"Indexed {len(index.chunks)} chunks · {index.vectors.shape[1]} dimensions · {embedding}", plot
+        index = load_corpus()
+        atlas = embedding_plot(index) if len(index.chunks) > 1 else None
+        corpus = (f"**{len({d.metadata['source'] for d in index.chunks})} documents · {len(index.chunks)} chunks · "
+                  f"{index.vectors.shape[1]} dimensions** · Chroma (local, persistent) · {EMBEDDING_MODEL}")
+        # Show a ready chat before calculating the bundled retrieval benchmark.
+        yield index, {}, "Documents ready. Ask a question below.", corpus, waiting_rows(), atlas
+        try:
+            baseline = benchmark(index, ROOT / "data/eval.json", K)
+            rows = measurement_rows(baseline)
+        except Exception as exc:
+            baseline = {"error": str(exc), "corpus": index.fingerprint}
+            rows = [[name, "Benchmark unavailable" if name in {"Precision@k", "Recall@k", "MRR", "nDCG@k"} else value, description] for name, value, description in waiting_rows()]
+            corpus += f"\n\nBenchmark unavailable: {exc}"
+        yield index, baseline, "Documents ready. Ask a question below.", corpus, rows, atlas
     except Exception as exc:
-        raise gr.Error(f"Indexing failed. Check Ollama is running and the embedding model is installed. {exc}")
+        yield None, {}, f"Documents could not load. Check Ollama is running with {ANSWER_MODEL} and {EMBEDDING_MODEL}. {exc}", "Corpus unavailable.", waiting_rows(), None
 
-def chat(question, history, index, model, k):
+def chat(question, history, index, baseline):
     if index is None:
-        raise gr.Error("Open Documents in the Chat tab and prepare your documents or use the sample documents.")
+        raise gr.Error("The documents are still loading. If loading failed, start Ollama and refresh this page.")
     if not question.strip():
         raise gr.Error("Enter a question.")
     try:
-        response, found, query, seconds = answer(index, question, model, int(k))
-        evidence = [{"citation": f"[{rank}]", "source": doc.metadata["source"], "page": doc.metadata["page"], "cosine": round(score, 4), "passage": doc.page_content} for rank, (_, doc, score) in enumerate(found, 1)]
-        import html
-        evidence_text = "\n\n---\n\n".join(
-            f"### {item['citation']} {html.escape(item['source'])} · page {item['page']}\n\n"
-            + html.escape(item['passage']) for item in evidence)
-        return "", (history or []) + [{"role":"user", "content":question}, {"role":"assistant", "content":response}], evidence_text, embedding_plot(index, query, found) if len(index.chunks)>1 else None, f"{seconds:.2f}s · {len(found)} retrieved chunks"
+        response, found, query, seconds = answer(index, question, ANSWER_MODEL, K)
+        context = "\n\n---\n\n".join(f"### [{rank}] {html.escape(doc.metadata['source'])} · page {doc.metadata['page']}\n\n{html.escape(doc.page_content)}"
+            for rank, (_, doc, _) in enumerate(found, 1))
+        turn = {"question": question, "answer": response, "seconds": seconds,
+                "context": [doc.page_content for _, doc, _ in found],
+                "retrieved": [{"source": doc.metadata["source"], "cosine": score} for _, doc, score in found],
+                "model": ANSWER_MODEL, "embedding_model": EMBEDDING_MODEL, "k": K}
+        table = [[rank, doc.metadata["source"], doc.metadata["page"], round(score, 4)] for rank, (_, doc, score) in enumerate(found, 1)]
+        return ("", (history or []) + [{"role":"user", "content":question}, {"role":"assistant", "content":response}],
+                context, embedding_plot(index, query, found) if len(index.chunks)>1 else None,
+                turn, measurement_rows(baseline, turn), table, "Answer ready. Quality checks are running automatically…")
     except Exception as exc:
         raise gr.Error(str(exc))
 
-def run_eval(index, dataset, model, judge, k, selected):
-    if index is None:
-        raise gr.Error("Open Documents in the Chat tab and prepare your documents or use the sample documents.")
+def automatic_checks(turn, baseline):
+    if not turn:
+        return measurement_rows(baseline), "Ask a question to measure answer quality."
     try:
-        cases = read_cases(dataset or ROOT / "data/eval.json", index)
-        rows, path = evaluate(index, cases, model, judge, int(k), selected)
-        frame = pd.DataFrame(rows)
-        summary = []
-        for name in selected:
-            values = pd.to_numeric(frame[name], errors="coerce").dropna()
-            summary.append({"metric":name, "mean":round(float(values.mean()),4) if len(values) else None, "successful cases":len(values), "total cases":len(frame)})
-        return pd.DataFrame(summary), frame, path
+        judgments = judge_turn(turn, ANSWER_MODEL)
+        rows = measurement_rows(baseline, turn, judgments=judgments)
+        status = "Latest answer evaluated automatically. Local judge estimates need human review."
     except Exception as exc:
-        raise gr.Error(str(exc))
-
-def compare_runs(paths):
-    import json
-    if not paths:
-        raise gr.Error("Select exported evaluation reports.")
-    results = []
+        rows = measurement_rows(baseline, turn, judge_error=str(exc))
+        status = "Answer available. Local quality judging failed; retrieval and timing measurements remain available."
     try:
-        for path in paths:
-            report = json.loads(Path(path).read_text())
-            config = report["config"]
-            row = {"run": Path(path).name, **config}
-            for name in config["metrics"]:
-                values = pd.to_numeric(pd.Series([case.get(name) for case in report["cases"]]), errors="coerce").dropna()
-                row[name] = float(values.mean()) if len(values) else None
-                row[name + " valid/total"] = f"{len(values)}/{len(report['cases'])}"
-            results.append(row)
-        return pd.DataFrame(results)
-    except Exception as exc:
-        raise gr.Error(f"Invalid exported report: {exc}")
+        save_turn(turn, baseline, rows)
+    except Exception:
+        status += " Run could not be saved to disk."
+    return rows, status
 
 def create_app():
-    defaults = ["Precision@k", "Recall@k", "MRR", "nDCG@k", "Answer token F1", "Latency"]
     with gr.Blocks(title="PrismRAG") as demo:
-        state = gr.State(None)
-        gr.Markdown("# PrismRAG\nAsk your documents. See the sources.")
+        index = gr.State(None)
+        baseline = gr.State({})
+        turn = gr.State(None)
+        gr.Markdown("# PrismRAG\nAsk Northstar Analytics’ knowledge base. See the sources.")
         with gr.Tab("Chat"):
-            with gr.Accordion("Documents", open=False):
-                files = gr.File(file_count="multiple", file_types=[".pdf", ".txt", ".md"], type="filepath", label="Your documents")
-                with gr.Row():
-                    sample = gr.Button("Use sample documents")
-                    build = gr.Button("Prepare documents", variant="primary")
-                status = gr.Markdown("Add documents and select Prepare documents, or use the sample documents.")
+            ready = gr.Markdown("Loading the included documents automatically…")
             with gr.Row():
                 with gr.Column(scale=1):
                     history = gr.Chatbot(label="Conversation", height=520)
-                    question = gr.Textbox(label="Message", show_label=False, placeholder="Ask a question about your documents…")
+                    question = gr.Textbox(label="Message", show_label=False, placeholder="What does the Growth plan cost per month now?")
                     with gr.Row():
                         send = gr.Button("Send", variant="primary")
                         clear = gr.Button("Clear chat")
                 with gr.Column(scale=1):
                     with gr.Group(elem_id="context-panel"):
                         gr.Markdown("### Relevant context")
-                        context = gr.Markdown("Passages used to answer your question will appear here.", elem_id="context-passages")
+                        context = gr.Markdown(EMPTY_CONTEXT, elem_id="context-passages")
         with gr.Tab("Measurements"):
-            gr.Markdown("## Evaluation\nMeasure answer quality and retrieval, compare experiments, and inspect embeddings.")
-            with gr.Accordion("Models & retrieval settings", open=False):
-                with gr.Row():
-                    embedding = gr.Textbox(value="nomic-embed-text", label="Embedding model")
-                    model = gr.Textbox(value="qwen3.5:9b", label="Answer model")
-                    judge = gr.Textbox(value="qwen3.5:9b", label="Judge model")
-                with gr.Row():
-                    size = gr.Slider(200, 2000, value=700, step=100, label="Chunk size (characters)")
-                    overlap = gr.Slider(0, 400, value=100, step=25, label="Chunk overlap")
-                    k = gr.Slider(1, 12, value=4, step=1, label="Retrieved chunks (k)")
-                gr.Markdown("Prepare documents again after changing chunking or embedding settings. Each chat message retrieves independently.")
-            timing = gr.Markdown("Chat latency will appear here after a response.")
-            dataset = gr.File(label="Evaluation dataset · JSON (optional; defaults to sample)", file_types=[".json"], type="filepath")
-            selected = gr.CheckboxGroup(list(METRICS), value=defaults, label="Metrics to measure")
-            with gr.Accordion("What do these metrics mean?", open=False):
-                help_text = gr.Markdown(explain(defaults))
-            with gr.Accordion("How to interpret results", open=False):
-                gr.Markdown("The sample dataset is a smoke benchmark, not a general quality claim. Local model judges are fallible; prefer a separate stronger judge and human checks. Failed judgments are excluded from means and reported in success counts. Cosine similarity is proximity, not confidence. Model citations need review.")
-            run = gr.Button("Run evaluation", variant="primary")
-            summary = gr.Dataframe(label="Aggregate scores", interactive=False)
-            with gr.Accordion("Per-question results & export", open=False):
-                details = gr.Dataframe(label="Answers, scores and judge reasons", interactive=False)
-                download = gr.File(label="Download run JSON")
-            with gr.Accordion("Compare experiments", open=False):
-                gr.Markdown("Compare saved runs using the same corpus hash and question set.")
-                reports = gr.File(label="Saved run JSON reports", file_count="multiple", file_types=[".json"], type="filepath")
-                compare = gr.Button("Compare runs")
-                comparison = gr.Dataframe(label="Run comparison", interactive=False)
-            with gr.Accordion("Vector visualization", open=False):
-                gr.Markdown("Color = source; symbols = retrieved chunks; star = latest query. PCA is a lossy projection; retained variance appears in the title. Clusters alone do not prove quality. Check labeled recall and nDCG.")
-                plot = gr.Plot()
-        empty_context = "Passages used to answer your question will appear here."
-        sample.click(lambda: sorted(str(p) for p in (ROOT / "data/corpus").glob("*.md")), outputs=files).then(
-            index_files, [files, embedding, size, overlap], [state, status, plot]).then(
-            lambda: ([], empty_context), outputs=[history, context])
-        build.click(index_files, [files, embedding, size, overlap], [state, status, plot]).then(
-            lambda: ([], empty_context), outputs=[history, context])
-        inputs = [question, history, state, model, k]
-        outputs = [question, history, context, plot, timing]
-        send.click(chat, inputs, outputs)
-        question.submit(chat, inputs, outputs)
-        clear.click(lambda: ([], empty_context, ""), outputs=[history, context, timing])
-        compare.click(compare_runs, reports, comparison)
-        selected.change(explain, selected, help_text)
-        run.click(run_eval, [state, dataset, model, judge, k, selected], [summary, details, download])
+            gr.Markdown("## Automatic measurements\nEverything updates automatically. Retrieval scores use the bundled labeled questions; answer quality and latency describe your latest chat response.")
+            corpus = gr.Markdown("Loading corpus…")
+            progress = gr.Markdown("Ask a question to measure answer quality.")
+            measurements = gr.Dataframe(headers=["Measurement", "Result", "What it means"], value=waiting_rows(), interactive=False, wrap=True, label="Evaluations & measurements")
+            gr.Markdown("### Latest retrieval\nCosine similarity is proximity, not confidence. Each message retrieves independently.")
+            retrieval = gr.Dataframe(headers=["Rank", "Source", "Page", "Cosine similarity"], value=[], interactive=False, label="Retrieved passages")
+            gr.Markdown("### Vector space\nColor identifies sources; symbols identify retrieved chunks; the star is your latest question. PCA loses information; retained variance appears in the title. Clusters alone do not establish quality.")
+            plot = gr.Plot()
+            gr.Markdown("The company and documents are fictional. Bundled questions are development examples, not a held-out benchmark. Judge scores are fallible estimates from the answer model. Token F1 requires an exact bundled question with a reference answer. Reports save automatically to `runs/` locally.")
+        demo.load(initialize, outputs=[index, baseline, ready, corpus, measurements, plot])
+        inputs = [question, history, index, baseline]
+        outputs = [question, history, context, plot, turn, measurements, retrieval, progress]
+        for event in [send.click, question.submit]:
+            event(chat, inputs, outputs).success(automatic_checks, [turn, baseline], [measurements, progress])
+        clear.click(lambda b: ([], EMPTY_CONTEXT, None, measurement_rows(b), [], "Ask a question to measure answer quality."),
+                    inputs=baseline, outputs=[history, context, turn, measurements, retrieval, progress])
     return demo
 
 if __name__ == "__main__":
-    create_app().queue(default_concurrency_limit=1).launch(server_name="127.0.0.1", share=False, footer_links=[], theme=gr.themes.Soft(primary_hue="violet", neutral_hue="slate"), css="""
-.gradio-container { max-width: 1480px !important; }
-#context-panel { height: 520px; overflow-y: auto; padding: 20px; }
-#context-panel h3 { color: #c084fc; }
-#context-passages { line-height: 1.7; overflow-wrap: anywhere; }
-@media (max-width: 768px) { #context-panel { height: 360px; } }
-""")
+    create_app().queue(default_concurrency_limit=1).launch(server_name="127.0.0.1", share=False,
+        footer_links=[], theme=gr.themes.Soft(primary_hue="violet", neutral_hue="slate"), css=CSS)

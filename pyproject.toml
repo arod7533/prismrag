@@ -3,7 +3,7 @@ name = "prismrag"
 version = "0.1.0"
 description = "See the evidence. Measure the answer. A local RAG evaluation lab."
 requires-python = ">=3.11,<3.15"
-dependencies = ["gradio>=6,<7", "langchain-core>=1,<2", "langchain-ollama>=1,<2", "langchain-text-splitters>=1,<2", "numpy>=2,<3", "pandas>=2,<3", "plotly>=6,<7", "scikit-learn>=1.6,<2", "pypdf>=5,<7"]
+dependencies = ["gradio>=6,<7", "langchain-core>=1,<2", "langchain-chroma>=1,<2", "langchain-ollama>=1,<2", "langchain-text-splitters>=1,<2", "numpy>=2,<3", "pandas>=2,<3", "plotly>=6,<7", "scikit-learn>=1.6,<2", "pypdf>=5,<7"]
 [dependency-groups]
 dev = ["pytest>=8,<10"]
 [tool.pytest.ini_options]

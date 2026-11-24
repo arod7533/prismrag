@@ -1,23 +1,145 @@
 [
   {
-    "question": "What does chunk overlap do?",
-    "reference": "Chunk overlap preserves context across boundaries.",
+    "question": "What does the Growth plan cost per month now?",
+    "reference": "Growth costs $149 per workspace per month before tax.",
     "relevant_sources": [
-      "retrieval.md"
+      "pricing-current.md"
     ]
   },
   {
-    "question": "How do recall and precision differ?",
-    "reference": "Recall measures the fraction of relevant sources retrieved. Precision measures the fraction of retrieved sources that are relevant.",
+    "question": "How much is Starter with annual billing?",
+    "reference": "Starter is $49 monthly; annual billing gives ten percent off the twelve-month subscription total.",
     "relevant_sources": [
-      "evaluation.md"
+      "pricing-current.md"
     ]
   },
   {
-    "question": "Can GitHub Pages run the Python application and Ollama?",
-    "reference": "No. GitHub Pages serves static files. Python and Ollama require a running backend.",
+    "question": "Can Growth customers use SAML single sign-on?",
+    "reference": "No. SAML single sign-on is available only on Enterprise.",
     "relevant_sources": [
-      "deployment.md"
+      "sso.md"
+    ]
+  },
+  {
+    "question": "How often are backups made and what is the recovery time objective?",
+    "reference": "Encrypted backups are taken every six hours. The recovery time objective is eight hours after a disaster is declared.",
+    "relevant_sources": [
+      "backup-recovery.md"
+    ]
+  },
+  {
+    "question": "How long does Growth retain imported data?",
+    "reference": "Growth retains imported source rows and aggregated dashboard results for one hundred eighty days.",
+    "relevant_sources": [
+      "data-retention.md"
+    ]
+  },
+  {
+    "question": "Can a Viewer export raw data?",
+    "reference": "No. Viewers can view shared dashboards but cannot export raw data.",
+    "relevant_sources": [
+      "roles-permissions.md",
+      "dashboard-sharing.md"
+    ]
+  },
+  {
+    "question": "What should I do after an API HTTP 429 response?",
+    "reference": "Wait the Retry-After duration in seconds and retry with jitter.",
+    "relevant_sources": [
+      "api-limits.md"
+    ]
+  },
+  {
+    "question": "What are the CSV file size and row limits?",
+    "reference": "Each UTF-8 CSV can have at most fifty megabytes and one million rows.",
+    "relevant_sources": [
+      "csv-import.md"
+    ]
+  },
+  {
+    "question": "Does Harbor offer SOC 2 certification?",
+    "reference": "No. This fictional company has no SOC 2 report.",
+    "relevant_sources": [
+      "security.md"
+    ]
+  },
+  {
+    "question": "Is scheduled PDF delivery available?",
+    "reference": "No. Scheduled PDF delivery is a planned feature without a committed release date.",
+    "relevant_sources": [
+      "dashboard-sharing.md",
+      "release-notes.md"
+    ]
+  },
+  {
+    "question": "Which plan do I need for Warehouse Sync and hourly refreshes?",
+    "reference": "Growth includes Warehouse Sync and hourly refreshes; Enterprise also supports it with fifteen-minute refreshes.",
+    "relevant_sources": [
+      "warehouse-sync.md",
+      "harbor-product.md"
+    ]
+  },
+  {
+    "question": "Why were Warehouse Sync imports delayed on October 12?",
+    "reference": "Invalid credentials were retried without backoff, starving valid jobs in the retry queue.",
+    "relevant_sources": [
+      "incident-2026-10.md"
+    ]
+  },
+  {
+    "question": "When must duplicate-charge refunds be reported?",
+    "reference": "Within thirty calendar days of the charge.",
+    "relevant_sources": [
+      "billing-refunds.md"
+    ]
+  },
+  {
+    "question": "When must Enterprise SLA credit requests be submitted?",
+    "reference": "Within fifteen calendar days after the affected month ends.",
+    "relevant_sources": [
+      "sla.md"
+    ]
+  },
+  {
+    "question": "Does SSO automatically provision users?",
+    "reference": "No. Users must be invited explicitly; SCIM provisioning is not supported.",
+    "relevant_sources": [
+      "sso.md"
+    ]
+  },
+  {
+    "question": "How is net sales calculated?",
+    "reference": "Net sales equals gross sales minus recorded refund amounts.",
+    "relevant_sources": [
+      "metrics-definitions.md"
+    ]
+  },
+  {
+    "question": "How quickly must the first confirmed incident update be published?",
+    "reference": "Within thirty minutes of confirmed impact, then every sixty minutes until recovery.",
+    "relevant_sources": [
+      "incident-response.md"
+    ]
+  },
+  {
+    "question": "Does the Enterprise CSV size limit increase?",
+    "reference": "No. The fifty-megabyte and one-million-row per-file limit does not increase on Enterprise.",
+    "relevant_sources": [
+      "csv-import.md"
+    ]
+  },
+  {
+    "question": "Can an Admin delete a workspace?",
+    "reference": "No. Only the Owner can request workspace deletion.",
+    "relevant_sources": [
+      "roles-permissions.md"
+    ]
+  },
+  {
+    "question": "Who leads Platform Engineering?",
+    "reference": "Priya Shah leads Platform Engineering.",
+    "relevant_sources": [
+      "company-overview.md"
     ]
   }
 ]

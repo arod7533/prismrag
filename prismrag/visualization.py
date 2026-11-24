@@ -15,7 +15,7 @@ def embedding_plot(index, query=None, found=()):
         "source": [d.metadata["source"] for d in index.chunks],
         "retrieval": ["Retrieved" if i in hits else "Other" for i in range(len(points))],
         "chunk": list(range(len(points))), "preview": [d.page_content[:120] for d in index.chunks]})
-    fig = px.scatter(frame, x="x", y="y", color="source", symbol="retrieval", hover_data=["chunk", "preview"], template="plotly_dark")
+    fig = px.scatter(frame, x="x", y="y", color="source", color_discrete_sequence=px.colors.qualitative.Alphabet, symbol="retrieval", hover_data=["chunk", "preview"], template="plotly_dark")
     if query is not None:
         q = projection.transform([query])[0]
         fig.add_scatter(x=[q[0]], y=[q[1] if len(q)>1 else 0], mode="markers", marker={"symbol":"star", "size":20, "color":"white"}, name="Query")
