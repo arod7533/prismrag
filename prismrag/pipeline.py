@@ -8,6 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
+from .topics import TOPICS
 from langchain_chroma import Chroma
 from ollama import Client
 from threading import RLock
@@ -42,6 +43,8 @@ def load_documents(paths):
             docs.append(Document(page_content=path.read_text(encoding="utf-8"), metadata={"source": path.name, "page": 1}))
         else:
             raise ValueError("Supported files: PDF, TXT, MD.")
+    for doc in docs:
+        doc.metadata["topic"] = TOPICS.get(doc.metadata["source"], "Uncategorized")
     return docs
 
 def normalize(vectors):
@@ -55,7 +58,7 @@ def build_index(paths, model, chunk_size=700, overlap=100):
         raise ValueError("Select files or load the sample corpus first.")
     if overlap >= chunk_size:
         raise ValueError("Overlap must be smaller than chunk size.")
-    chunks = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=overlap).split_documents(load_documents(paths))
+    chunks = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=overlap, add_start_index=True).split_documents(load_documents(paths))
     if not chunks:
         raise ValueError("No extractable text. Scanned PDFs need OCR first.")
     embedder = OllamaEmbeddings(model=model, base_url="http://localhost:11434")

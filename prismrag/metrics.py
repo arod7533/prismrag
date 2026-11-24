@@ -2,6 +2,7 @@
 import math
 
 METRICS = {
+    "Answer accuracy": "Local judge checks correctness and completeness against a curated reference answer (0–1). Available only for an exact bundled question; not measured for unlabeled questions.",
     "Precision@k": "Fraction of retrieved sources that are labeled relevant. Higher is better; measures noise. Repeated chunks from one source count once.",
     "Recall@k": "Fraction of all labeled relevant sources retrieved. Higher is better; measures missing evidence.",
     "MRR": "Reciprocal rank of the first relevant source. 1 means the first source is relevant; 0 means none were found.",
