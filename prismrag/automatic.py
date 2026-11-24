@@ -30,11 +30,15 @@ def waiting_rows():
 def benchmark(index, dataset, k):
     cases = read_cases(dataset, index)
     scores = []
+    details = []
     for case in cases:
         found, _ = retrieve(index, case["question"], k)
-        scores.append(retrieval_metrics([doc.metadata["source"] for _, doc, _ in found], case["relevant_sources"]))
+        sources = list(dict.fromkeys(doc.metadata["source"] for _, doc, _ in found))
+        metrics = retrieval_metrics(sources, case["relevant_sources"])
+        scores.append(metrics)
+        details.append({"question":case["question"], "relevant_sources":case["relevant_sources"], "retrieved_sources":sources, "metrics":metrics})
     means = {name: sum(row[name] for row in scores) / len(scores) for name in scores[0]}
-    return {"means": means, "count": len(cases), "cases": cases, "corpus": index.fingerprint}
+    return {"means": means, "count": len(cases), "cases": cases, "details": details, "corpus": index.fingerprint}
 
 def reference_case(baseline, question):
     return next((case for case in baseline.get("cases", []) if case["question"].strip().casefold() == question.strip().casefold()), None)

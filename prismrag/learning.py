@@ -2,7 +2,7 @@
 from .metrics import METRICS
 
 
-def learning_guidance(index, baseline, turn=None, judgments=None):
+def learning_guidance(index, baseline, turn=None, judgments=None, include_embeddings=False):
     lines = ["### What the current results suggest"]
     means = baseline.get('means',{})
     if means:
@@ -18,7 +18,7 @@ def learning_guidance(index, baseline, turn=None, judgments=None):
             lines.append("- **Ranking still has room to improve.** The first source is not always labeled relevant. Inspect current versus archived pricing and try a reranker or explicit current-policy metadata filter.")
     else:
         lines.append("- Retrieval recommendations appear automatically once the bundled benchmark finishes.")
-    if index is not None:
+    if include_embeddings and index is not None:
         from .topics import topic_for
         import numpy as np
         labels = [topic_for(doc) for doc in index.chunks]

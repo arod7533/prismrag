@@ -6,6 +6,7 @@ from prismrag.pipeline import build_index, answer
 from prismrag.automatic import benchmark, measurement_rows, waiting_rows, judge_turn, save_turn, reference_case
 from prismrag.visualization import embedding_plot, boundary_view, segmentation_diagnostics
 from prismrag.learning import learning_guidance, metric_glossary
+from prismrag.evaluation_view import evaluation_sections
 
 ROOT = Path(__file__).parent
 ANSWER_MODEL = "qwen3.5:9b"
@@ -116,26 +117,37 @@ def create_app():
                         gr.Markdown("### Relevant context")
                         context = gr.Markdown(EMPTY_CONTEXT, elem_id="context-passages")
         with gr.Tab("Measurements"):
-            gr.Markdown("## Automatic measurements\nEverything updates automatically. Retrieval scores use the bundled labeled questions; answer quality and latency describe your latest chat response.")
-            gr.Markdown("**1 · Retrieve:** check whether the right evidence was found. **2 · Generate:** check support, relevance and accuracy. **3 · Inspect chunks:** check boundaries and topic neighborhoods. **4 · Improve:** change one thing and measure again.")
+            gr.Markdown("## Understand the evaluation\nFollow the evidence, then the answer. Everything runs automatically. **The first section covers a fixed question set; the second covers only your latest chat response.**")
             corpus = gr.Markdown("Loading corpus…")
-            progress = gr.Markdown("Ask a question to measure answer quality.")
-            measurements = gr.Dataframe(headers=["Measurement", "Result", "What it means"], value=waiting_rows(), interactive=False, wrap=True, label="Evaluations & measurements")
-            guidance = gr.Markdown("Suggestions appear after the documents load.")
-            with gr.Accordion("Learn each metric: why it matters and what to try", open=False):
+            measurements = gr.State(waiting_rows())
+            gr.Markdown("### 1. Did we retrieve the right evidence?\n**Method:** run the 20 bundled questions through retrieval with top-k 4. Compare retrieved source filenames with the curated evidence labels, then average each metric across questions. No answer model or model judge is involved in these four scores. Values range from 0 to 1.")
+            retrieval_scores = gr.Markdown("Running the retrieval benchmark…")
+            with gr.Accordion("Walk through a real evaluation", open=False):
+                worked_example = gr.Markdown("Loading a measured example…")
+            gr.Markdown("### 2. Is the latest answer good?\n**Method:** after each chat response, a local model judges support, relevance and context usefulness. For a question with a curated reference, a separate call compares the answer with a curated reference to estimate accuracy. These 0–1 scores are fallible judgments, not independently verified facts.")
+            progress = gr.Markdown("Ask a question in Chat to evaluate an answer.")
+            answer_scores = gr.Markdown("Answer measurements appear after you chat.")
+            with gr.Accordion("Discuss the latest answer: evidence, reference and judge reasons", open=False):
+                answer_discussion = gr.Markdown("Ask a question to see its evaluation discussion.")
+                retrieval = gr.Dataframe(headers=["Rank", "Source", "Page", "Cosine similarity"], value=[], interactive=False, label="Passages supplied to the answer model")
+                gr.Markdown("The exact passages are visible beside Chat. Cosine similarity is vector proximity, not confidence or correctness.")
+            gr.Markdown("### 3. What should we try next?\nUse the discussion below to choose one experiment. Compare the same question set before and after a change; do not optimize a score without reading the answers.")
+            guidance = gr.Markdown("Recommendations appear after the benchmark finishes.")
+            with gr.Accordion("Evaluation design and limitations", open=False):
+                gr.Markdown("**What is labeled?** The 20 demonstration questions have reference answers and relevant source filenames authored alongside the fictional documents. These are development examples, not an independent held-out test. Precision can undercount useful sources omitted from the labels.\n\n**What does the judge see?** Support and relevance judging receives the question, actual answer and retrieved context. Accuracy judging separately receives the question, actual answer and reference. Exact question matching ignores case and outer whitespace; arbitrary questions do not gain an invented reference.\n\n**What can go wrong?** The same local model answers and judges, creating correlated bias. A faithful answer can repeat outdated context; an accurate answer can use different wording from the reference. Missing or failed checks are shown as unavailable, never zero.\n\n**How would we strengthen this?** Add independently reviewed paraphrases, multi-document and unanswerable cases; reserve a held-out set; compare with a separate stronger judge and human reviews. Save the same dataset and configuration when comparing runs. Reports save automatically to the local runs folder.")
                 gr.Markdown(metric_glossary())
-            gr.Markdown("### Latest retrieval\nCosine similarity is proximity, not confidence. Each message retrieves independently.")
-            retrieval = gr.Dataframe(headers=["Rank", "Source", "Page", "Cosine similarity"], value=[], interactive=False, label="Retrieved passages")
-            gr.Markdown("## Are the chunks segmented sensibly?\nCheck two different things: **text boundaries** (did we preserve useful passages?) and **embedding neighborhoods** (are related topics close?). A scatterplot cannot establish both.")
-            diagnostics = gr.Markdown("Computing chunk diagnostics…")
-            gr.Markdown("### Topic neighborhoods\nThe six colors are human-labeled subjects, shared across related documents. Nearby chunks of the same color suggest topic grouping; mixed colors can be legitimate cross-topic relationships. White diamonds mark retrieved evidence; the star marks your question. Hover for the source and chunk preview. The PCA view is lossy—use the full-vector diagnostics above, not just visual spacing.")
-            plot = gr.Plot()
-            gr.Markdown("### Inspect actual chunk boundaries\nThe default pricing example is already populated. Optionally inspect another document. Bars show exact character ranges within each source page; the cards show the complete text of each chunk. Check that a passage keeps its meaning and necessary qualifications. Short chunks and incomplete endings are review hints, not automatic failures.")
-            source_choices = sorted(p.name for p in (ROOT / "data/corpus").iterdir() if p.suffix.lower() in {".md", ".txt", ".pdf"})
-            inspect_source = gr.Dropdown(choices=source_choices, value="pricing-current.md", label="Document to inspect")
-            boundaries = gr.Plot(label="Chunk boundaries")
-            chunk_text = gr.HTML()
-            gr.Markdown("The company and documents are fictional. Bundled questions are development examples, not a held-out benchmark. Judge scores are fallible estimates from the answer model. Answer accuracy and token F1 require an exact bundled question with a reference answer. Accuracy is reference-based model judging, not an independently verified overall accuracy rate. Reports save automatically to `runs/` locally.")
+            with gr.Accordion("Optional diagnostics: chunking and embedding neighborhoods", open=False):
+                gr.Markdown("#### Is the scatterplot relevant?\nIt is an **exploration aid**, not an evaluation score. It may reveal related passages, odd neighbors or where a query lands. PCA compresses hundreds of dimensions into two, so apparent distances and clusters can mislead. Use the labeled retrieval results above to assess usefulness; inspect actual text boundaries to assess splitting.")
+                diagnostics = gr.Markdown("Computing chunk diagnostics…")
+                with gr.Accordion("Explore the topic scatterplot", open=False):
+                    gr.Markdown("Colors are human-authored topics; white diamonds mark retrieved chunks and the star marks your question. Hover for the source and text preview. Topic separation uses full vectors, while this map is a lossy projection. Neither establishes that a chunk preserves its meaning.")
+                    plot = gr.Plot()
+                gr.Markdown("#### Inspect the actual splitting\nThe pricing document is preselected. Bars show character ranges; cards show the full chunk text. Read across the boundary: did a rule lose its condition or a paragraph lose its heading? Size/ending flags are review hints, not failures. Changing the document below is optional exploration, not evaluation setup.")
+                source_choices = sorted(p.name for p in (ROOT / "data/corpus").iterdir() if p.suffix.lower() in {".md", ".txt", ".pdf"})
+                inspect_source = gr.Dropdown(choices=source_choices, value="pricing-current.md", label="Document to inspect")
+                boundaries = gr.Plot(label="Chunk boundaries")
+                chunk_text = gr.HTML()
+        measurements.change(evaluation_sections, [measurements, baseline, turn], [retrieval_scores, worked_example, answer_scores, answer_discussion])
         demo.load(initialize, outputs=[index, baseline, ready, corpus, measurements, plot, diagnostics, boundaries, chunk_text, guidance])
         inspect_source.change(lambda idx, source: boundary_view(idx, source) if idx else (None, "Documents are still loading."), [index, inspect_source], [boundaries, chunk_text])
         inputs = [question, history, index, baseline]
