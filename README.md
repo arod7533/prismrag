@@ -20,13 +20,13 @@ Open http://127.0.0.1:7860. Documents load and vectorize automatically. Ask a qu
 ## Two tabs
 **Chat** introduces the fictional company and provides six clickable suggested questions, all matching labeled reference questions. Select an example to fill the message box, then Send. A conversation and readable source passages sit side by side. Each message retrieves independently and asks the local model for a cited answer.
 
-**Measurements** is an automatic learning page organized around three questions:
+**Measurements** is a compact, automatic scorecard:
 
-1. **Did we retrieve the right evidence?** Four benchmark metrics, a short interpretation and a real per-question walkthrough showing expected versus retrieved sources. These are means across the development set, not answer scores.
-2. **Is the latest answer good?** Reference-based accuracy, faithfulness and relevance for the latest chat only. An expandable discussion presents the actual answer, available reference, judge reasons, token overlap and retrieved source rankings. The page explains what each judge receives and why scores can disagree.
-3. **What should we try next?** Suggestions tied to observed results, with one-change-at-a-time experiments and evaluation limitations.
+- **Evidence found:** the average labeled-source recall across the 20 test questions.
+- **Answer accuracy:** a local model's reference-based score for the latest answer, shown out of 100. Questions without a reference are not scored. This is not an overall pipeline accuracy percentage.
+- **Response time:** retrieval plus answer generation, excluding judging.
 
-Definitions and evaluation design are available in a separate expandable explanation. Chunk boundaries, full-vector topic diagnostics and the PCA scatterplot are under **Optional diagnostics**, with the plot itself collapsed. The scatterplot is exploratory; labeled retrieval scores evaluate usefulness and actual text boundaries help assess segmentation. There are no required setup or evaluation controls.
+The main view has three cards and one short status line. **Score details** contains supporting metrics, references and judge reasons. **Explore chunks** contains the optional topic map and boundary inspector. No evaluation setup is required.
 
 On startup, the app embeds and retrieves the 20 labeled development questions, retains the actual source rankings and per-question scores for discussion, then computes document-level Precision@k, Recall@k, MRR and binary nDCG@k. Duplicate chunks from one document count once. These are retrieval benchmark means, not scores for an unlabeled chat question. Partial source labels can miss other useful evidence.
 
@@ -39,7 +39,7 @@ Documents → LangChain recursive character chunks → Ollama embeddings → **p
 
 Chroma collections are stored in gitignored `.chroma/`, keyed by the corpus/chunk fingerprint, embedding model name and installed model digest. Reopening unchanged data reuses stored vectors; changed data/model identity creates a different collection. Missing embeddings in an interrupted build are resumed. Chroma performs retrieval; NumPy normalizes stored vectors for the PCA display. Collections accumulate until removed manually; do not commit the database. This embedded single-process design is intended for a small local portfolio app, not a multi-worker production service.
 
-The learning dashboard connects metrics to retrieval, generation, segmentation and speed, explains why each matters with examples, and proposes experiments from observed scores. Recommendations use simple review heuristics (for example, judge scores below 0.8); these are not calibrated pass/fail thresholds. Guidance never changes the pipeline automatically.
+Supporting evaluation details remain available without crowding the main dashboard. No composite quality grade or automatic pass/fail threshold is used.
 
 Color in the PCA plot identifies one of six human-authored topics, shared across related documents (`prismrag/topics.py`). A white diamond highlights retrieved chunks and a star marks the query. PCA is lossy; the title shows variance retained. Full-vector cosine silhouette summarizes separation relative to the supplied topic labels; near 1 indicates clearer separation, near 0 overlap and negative values indicate proximity to another topic. Nearest-topic agreement excludes chunks from the same document. Broad topics can legitimately overlap, so neither score is a universal embedding-quality grade.
 
