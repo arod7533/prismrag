@@ -36,7 +36,7 @@ def evaluate(index, cases, model, judge_model, k, selected):
     if not selected:
         raise ValueError("Select at least one metric.")
     rows = []
-    judge = ChatOllama(model=judge_model, temperature=0, base_url="http://localhost:11434").with_structured_output(Judgment, method="json_schema")
+    judge = ChatOllama(model=judge_model, temperature=0, reasoning=False, base_url="http://localhost:11434").with_structured_output(Judgment, method="json_schema")
     for case in cases:
         response, found, _, seconds = answer(index, case["question"], model, k)
         row = {"question": case["question"], "answer": response, "reference": case["reference"],

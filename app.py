@@ -46,6 +46,25 @@ def run_eval(index, dataset, model, judge, k, selected):
     except Exception as exc:
         raise gr.Error(str(exc))
 
+def compare_runs(paths):
+    import json
+    if not paths:
+        raise gr.Error("Select exported evaluation reports.")
+    results = []
+    try:
+        for path in paths:
+            report = json.loads(Path(path).read_text())
+            config = report["config"]
+            row = {"run": Path(path).name, **config}
+            for name in config["metrics"]:
+                values = pd.to_numeric(pd.Series([case.get(name) for case in report["cases"]]), errors="coerce").dropna()
+                row[name] = float(values.mean()) if len(values) else None
+                row[name + " valid/total"] = f"{len(values)}/{len(report['cases'])}"
+            results.append(row)
+        return pd.DataFrame(results)
+    except Exception as exc:
+        raise gr.Error(f"Invalid exported report: {exc}")
+
 def create_app():
     with gr.Blocks(title="PrismRAG") as demo:
         state = gr.State(None)
@@ -87,6 +106,10 @@ def create_app():
             summary = gr.Dataframe(label="Aggregate scores", interactive=False)
             details = gr.Dataframe(label="Per-question results and judge reasons", interactive=False)
             download = gr.File(label="Download reproducible run JSON")
+            gr.Markdown("### Compare experiments\nUpload saved run reports to compare means and settings. Compare matching corpus hashes and identical question sets; model judges may differ between runs.")
+            reports = gr.File(label="Saved run JSON reports", file_count="multiple", file_types=[".json"], type="filepath")
+            compare = gr.Button("Compare runs")
+            comparison = gr.Dataframe(label="Run comparison", interactive=False)
         with gr.Tab("Embedding atlas"):
             gr.Markdown("## Inspect the vector space\nColor identifies source documents; symbols identify retrieved chunks; a star marks the latest query. PCA is a lossy projection of normalized embeddings. Clusters do not establish embedding quality. Use labeled Recall@k and nDCG alongside this view. The title reports retained variance.")
             plot = gr.Plot()
@@ -97,6 +120,7 @@ def create_app():
         send.click(chat, inputs, outputs)
         question.submit(chat, inputs, outputs)
         clear.click(lambda: ([], None, ""), outputs=[history, context, timing])
+        compare.click(compare_runs, reports, comparison)
         selected.change(explain, selected, help_text)
         run.click(run_eval, [state, dataset, model, judge, k, selected], [summary, details, download])
     return demo
