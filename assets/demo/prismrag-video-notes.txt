@@ -1,0 +1,18 @@
+PrismRAG portfolio demo
+Duration: exactly 20 seconds
+Format: MP4 / H.264 / yuv420p / 1920x1080 / 30 fps
+Audio: silent; on-screen text supplies the narrative
+Size: approximately 720 KB; fast-start enabled for web playback
+
+This is an edited highlights video, not a continuous screen recording. It combines a real prior app screenshot with a newly verified local Ollama answer, source excerpts, and measured retrieval scores. Browser capture was unavailable during production.
+
+Sequence:
+0–2.5s: introduce PrismRAG
+2.5–8s: actual chat screenshot, local answer and cited source
+8–12s: local pipeline architecture
+12–17.5s: measured retrieval results on 20 labeled development questions
+17.5–20s: project name and GitHub URL
+
+The fictional Northstar Analytics corpus has 24 documents and 48 chunks. The displayed retrieval scores are development-set results, not a claim of general accuracy.
+
+Website: upload the MP4 and JPG poster, then adapt prismrag-video-embed.html. No external media host or local Ollama server is required to play this MP4.
