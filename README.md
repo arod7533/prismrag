@@ -9,7 +9,7 @@ A local Python, LangChain, Gradio, Ollama and Chroma RAG portfolio project.
 
 [Download MP4](https://raw.githubusercontent.com/arod7533/prismrag/main/assets/demo/prismrag-demo-20s.mp4) · [Website embed snippet](assets/demo/prismrag-video-embed.html)
 
-20 seconds · 1080p · silent · approximately 720 KB. Edited highlights using a real app screenshot and measured local results, rather than a continuous screen recording. The video and poster can be hosted on a static resume website without running Ollama.
+20 seconds · 1080p · silent · approximately 407 KB. Widescreen capture of the actual app running two local LLM questions, displaying both answers and retrieved context, followed by measured results. Waiting time is shortened to fit 20 seconds; this is labeled in the video. The video and poster can be hosted on a static resume website without running Ollama.
 
 ## Run
 Install [uv](https://docs.astral.sh/uv/) and [Ollama](https://ollama.com/), start Ollama, then:
