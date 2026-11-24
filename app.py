@@ -27,10 +27,14 @@ CSS = """
 #context-passages { line-height: 1.7; overflow-wrap: anywhere; }
 .scorecards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin:12px 0; }
 .scorecard { padding:24px; border:1px solid var(--border-color-primary); border-radius:12px; background:var(--block-background-fill); }
+.metric-strip { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.metric-item { padding:16px 20px; border:1px solid var(--border-color-primary); border-radius:10px; }
+.metric-value { font-size:26px; font-weight:650; margin:8px 0; }
+.metric-group-title { font-size:18px; margin:24px 0 12px; }
 .scorecard-label { font-size:16px; font-weight:600; }
 .scorecard-value { font-size:38px; font-weight:700; line-height:1.4; margin:12px 0; }
 .scorecard-note { font-size:14px; color:var(--body-text-color-subdued); }
-@media (max-width:700px) { .scorecards { grid-template-columns:1fr; } }
+@media (max-width:700px) { .scorecards, .metric-strip { grid-template-columns:1fr; } }
 @media (max-width: 768px) { #context-panel { height: 360px; } }
 """
 

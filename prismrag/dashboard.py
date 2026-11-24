@@ -29,6 +29,28 @@ def simple_dashboard(rows, baseline, turn):
     cards=[('Evidence found',evidence,evidence_note),('Answer accuracy',accuracy_value,accuracy_note),('Response time',latency,'Latest answer · excludes evaluation')]
     scorecard='<div class="scorecards">'+''.join(
         f'<section class="scorecard"><div class="scorecard-label">{html.escape(label)}</div><div class="scorecard-value">{html.escape(value)}</div><div class="scorecard-note">{html.escape(caption)}</div></section>' for label,value,caption in cards)+'</div>'
+    def compact_score(name, retrieval=False):
+        raw = baseline.get('means',{}).get(name) if retrieval else values.get(name,('', ''))[0]
+        try:
+            number = float(raw)
+            if not math.isfinite(number) or not 0 <= number <= 1:
+                raise ValueError('Invalid score')
+            return f'{number:.3f}'
+        except (TypeError, ValueError):
+            return 'Checking…' if 'Evaluating' in str(raw) else '—'
+    groups = [
+        (f"Retrieval quality · {baseline.get('count',0)} test questions" if baseline.get('means') else 'Retrieval quality · test questions', True,
+         [('Precision@k', 'How much retrieved evidence is labeled useful'), ('MRR', 'How early the first relevant source appears'), ('nDCG@k', 'How well relevant sources are ranked')]),
+        ('Answer quality · latest answer · model estimates', False,
+         [('Faithfulness', 'Claims supported by retrieved passages'), ('Answer relevance', 'How directly the answer addresses the question'), ('Context relevance', 'How useful the retrieved passages are')])]
+    for title, is_retrieval, metrics in groups:
+        scorecard += f'<h3 class="metric-group-title">{html.escape(title)}</h3><div class="metric-strip">'
+        for name, caption in metrics:
+            scorecard += (f'<section class="metric-item"><div class="scorecard-label">{html.escape(name)}</div>'
+                          f'<div class="metric-value">{compact_score(name,is_retrieval)}</div>'
+                          f'<div class="scorecard-note">{html.escape(caption)}</div></section>')
+        scorecard += '</div>'
+    scorecard += '<p class="scorecard-note">Supporting scores range from 0 to 1. Higher is better. Evidence found above is recall.</p>'
     if baseline.get('error'):
         summary='Evidence check unavailable. '+html.escape(str(baseline['error']))
     elif not turn:

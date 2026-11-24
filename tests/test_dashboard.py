@@ -28,3 +28,23 @@ def test_known_answer_score_and_timing_have_clear_scope():
     assert '2.1s' in cards
     assert '**Reference:** 149' in details
     assert 'Correct amount' in details
+
+
+def test_supporting_retrieval_scores_use_benchmark_means():
+    cards,_,_=simple_dashboard(measurement_rows(B),B,None)
+    assert all(name in cards for name in ['Precision@k','MRR','nDCG@k'])
+    assert '0.350' in cards and '0.900' in cards and '0.920' in cards
+    assert cards.count('class="scorecard"')==3
+    assert cards.count('class="metric-item"')==6
+    assert '20 test questions' in cards
+
+
+def test_answer_support_scores_dont_require_reference_or_invent_zero():
+    turn={'question':'Unknown','answer':'Hello','seconds':2}
+    rows=[['Faithfulness','.7',''],['Answer relevance','.8',''],['Context relevance','Evaluating…','']]
+    cards,_,_=simple_dashboard(rows,B,turn)
+    assert '0.700' in cards and '0.800' in cards
+    assert 'Checking…' in cards
+    assert 'Not scored' in cards
+    empty,_,_=simple_dashboard(measurement_rows(B),B,None)
+    assert '0.000' not in empty
