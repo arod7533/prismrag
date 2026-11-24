@@ -22,8 +22,9 @@ EXAMPLE_QUESTIONS = [
 EMPTY_CONTEXT = "Passages used to answer your question will appear here."
 CSS = """
 .gradio-container { max-width: 1480px !important; }
-#context-panel { height: 520px; overflow-y: auto; padding: 20px; }
-#context-panel h3 { color: #c084fc; }
+#context-panel { height: 520px; overflow-y: auto; overflow-x: hidden; padding: 20px; isolation: isolate; }
+#context-panel h3 { color: #c084fc; line-height: 1.4; margin: 0 0 14px; padding: 0; }
+#context-passages .prose > :first-child { margin-top: 0; }
 #context-passages { line-height: 1.7; overflow-wrap: anywhere; }
 .scorecards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin:12px 0; }
 .scorecard { padding:24px; border:1px solid var(--border-color-primary); border-radius:12px; background:var(--block-background-fill); }
@@ -131,8 +132,8 @@ def create_app():
                     gr.Examples(examples=[[q] for q in EXAMPLE_QUESTIONS], inputs=question,
                         label="Try a question · select one, then Send", examples_per_page=6)
                 with gr.Column(scale=1):
+                    gr.Markdown("### Relevant context")
                     with gr.Group(elem_id="context-panel"):
-                        gr.Markdown("### Relevant context")
                         context = gr.Markdown(EMPTY_CONTEXT, elem_id="context-passages")
         with gr.Tab("Measurements"):
             gr.Markdown("## RAG performance")
