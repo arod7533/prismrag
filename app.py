@@ -154,13 +154,13 @@ def create_app():
                 inspect_source = gr.Dropdown(choices=source_choices, value="pricing-current.md", label="Document")
                 boundaries = gr.Plot(label="Chunk boundaries")
                 chunk_text = gr.HTML()
-        measurements.change(simple_dashboard, [measurements, baseline, turn], [cards, summary, details])
-        demo.load(initialize, outputs=[index, baseline, ready, corpus, measurements, plot, diagnostics, boundaries, chunk_text, guidance]).then(simple_dashboard, [measurements, baseline, turn], [cards, summary, details])
+        measurements.change(simple_dashboard, [measurements, baseline, turn], [cards, summary, details], show_progress="hidden")
+        demo.load(initialize, outputs=[index, baseline, ready, corpus, measurements, plot, diagnostics, boundaries, chunk_text, guidance], show_progress="hidden").then(simple_dashboard, [measurements, baseline, turn], [cards, summary, details], show_progress="hidden")
         inspect_source.change(lambda idx, source: boundary_view(idx, source) if idx else (None, "Documents are still loading."), [index, inspect_source], [boundaries, chunk_text])
         inputs = [question, history, index, baseline]
         outputs = [question, history, context, plot, turn, measurements, retrieval, progress, guidance]
         for event in [send.click, question.submit]:
-            event(chat, inputs, outputs).success(automatic_checks, [turn, baseline, index], [measurements, progress, guidance])
+            event(chat, inputs, outputs, show_progress="minimal", show_progress_on=[history]).success(automatic_checks, [turn, baseline, index], [measurements, progress, guidance], show_progress="hidden")
         clear.click(lambda b, idx: ([], EMPTY_CONTEXT, None, measurement_rows(b), [], "Ask a question to measure answer quality.", ""),
                     inputs=[baseline,index], outputs=[history, context, turn, measurements, retrieval, progress, guidance])
     return demo
