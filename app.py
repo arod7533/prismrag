@@ -31,6 +31,15 @@ CSS = """
 .metric-item { padding:16px 20px; border:1px solid var(--border-color-primary); border-radius:10px; }
 .metric-value { font-size:26px; font-weight:650; margin:8px 0; }
 .metric-group-title { font-size:18px; margin:24px 0 12px; }
+.scorecard, .metric-item { position:relative; }
+.metric-help { display:inline-block; margin-left:8px; font-weight:400; }
+.metric-help > summary { display:inline-block; cursor:help; list-style:none; font-size:17px; color:var(--body-text-color-subdued); border-radius:4px; }
+.metric-help > summary::-webkit-details-marker { display:none; }
+.metric-help > summary:focus-visible { outline:2px solid #a78bfa; outline-offset:3px; }
+.metric-help > .metric-tooltip { display:none; position:absolute; top:48px; left:10px; right:10px; z-index:50; padding:16px; border-radius:10px; border:1px solid #64748b; background:#172033; color:#f1f5f9; box-shadow:0 8px 30px #0006; font-size:14px; line-height:1.5; }
+.scorecard:hover .metric-tooltip, .metric-item:hover .metric-tooltip, .metric-help:focus-within > .metric-tooltip, .metric-help[open] > .metric-tooltip { display:block; }
+.metric-tooltip p { margin:8px 0; }
+.metric-tooltip small { color:#cbd5e1; }
 .scorecard-label { font-size:16px; font-weight:600; }
 .scorecard-value { font-size:38px; font-weight:700; line-height:1.4; margin:12px 0; }
 .scorecard-note { font-size:14px; color:var(--body-text-color-subdued); }
