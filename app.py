@@ -21,19 +21,23 @@ def index_files(paths, embedding, size, overlap):
 
 def chat(question, history, index, model, k):
     if index is None:
-        raise gr.Error("Build an index first.")
+        raise gr.Error("Open Documents in the Chat tab and prepare your documents or use the sample documents.")
     if not question.strip():
         raise gr.Error("Enter a question.")
     try:
         response, found, query, seconds = answer(index, question, model, int(k))
         evidence = [{"citation": f"[{rank}]", "source": doc.metadata["source"], "page": doc.metadata["page"], "cosine": round(score, 4), "passage": doc.page_content} for rank, (_, doc, score) in enumerate(found, 1)]
-        return "", (history or []) + [{"role":"user", "content":question}, {"role":"assistant", "content":response}], evidence, embedding_plot(index, query, found) if len(index.chunks)>1 else None, f"{seconds:.2f}s · {len(found)} retrieved chunks"
+        import html
+        evidence_text = "\n\n---\n\n".join(
+            f"### {item['citation']} {html.escape(item['source'])} · page {item['page']}\n\n"
+            + html.escape(item['passage']) for item in evidence)
+        return "", (history or []) + [{"role":"user", "content":question}, {"role":"assistant", "content":response}], evidence_text, embedding_plot(index, query, found) if len(index.chunks)>1 else None, f"{seconds:.2f}s · {len(found)} retrieved chunks"
     except Exception as exc:
         raise gr.Error(str(exc))
 
 def run_eval(index, dataset, model, judge, k, selected):
     if index is None:
-        raise gr.Error("Build an index first.")
+        raise gr.Error("Open Documents in the Chat tab and prepare your documents or use the sample documents.")
     try:
         cases = read_cases(dataset or ROOT / "data/eval.json", index)
         rows, path = evaluate(index, cases, model, judge, int(k), selected)
@@ -66,64 +70,81 @@ def compare_runs(paths):
         raise gr.Error(f"Invalid exported report: {exc}")
 
 def create_app():
+    defaults = ["Precision@k", "Recall@k", "MRR", "nDCG@k", "Answer token F1", "Latency"]
     with gr.Blocks(title="PrismRAG") as demo:
         state = gr.State(None)
-        gr.Markdown("# PrismRAG\n### See the evidence. Measure the answer.\nA local retrieval and evaluation lab · LangChain × Ollama")
-        with gr.Accordion("Corpus & experiment settings", open=True):
-            with gr.Row():
+        gr.Markdown("# PrismRAG\nAsk your documents. See the sources.")
+        with gr.Tab("Chat"):
+            with gr.Accordion("Documents", open=False):
                 files = gr.File(file_count="multiple", file_types=[".pdf", ".txt", ".md"], type="filepath", label="Your documents")
-                with gr.Column():
-                    embedding = gr.Textbox(value="nomic-embed-text", label="Ollama embedding model")
-                    model = gr.Textbox(value="qwen3.5:9b", label="Ollama answer model")
-                    judge = gr.Textbox(value="qwen3.5:9b", label="Ollama judge model")
+                with gr.Row():
+                    sample = gr.Button("Use sample documents")
+                    build = gr.Button("Prepare documents", variant="primary")
+                status = gr.Markdown("Add documents and select Prepare documents, or use the sample documents.")
             with gr.Row():
-                size = gr.Slider(200, 2000, value=700, step=100, label="Chunk size (characters)")
-                overlap = gr.Slider(0, 400, value=100, step=25, label="Chunk overlap")
-                k = gr.Slider(1, 12, value=4, step=1, label="Retrieved chunks (k)")
-            with gr.Row():
-                sample = gr.Button("Load sample corpus")
-                build = gr.Button("Build index", variant="primary")
-            status = gr.Markdown("Start Ollama, load documents, then build the index. Settings apply when you rebuild.")
-        with gr.Tab("Chat & evidence"):
-            with gr.Row():
-                with gr.Column(scale=3):
-                    history = gr.Chatbot(label="Ask your documents", height=460)
-                    question = gr.Textbox(label="Question", placeholder="How does retrieval work?")
-                    send = gr.Button("Ask", variant="primary")
-                    timing = gr.Markdown()
-                    clear = gr.Button("Clear conversation")
-                    gr.Markdown("Each turn retrieves independently. Ask self-contained questions. Citations identify supplied passages; model citations still need review.")
-                with gr.Column(scale=2):
-                    gr.Markdown("### Retrieved evidence\nCosine similarity measures proximity, not confidence or correctness.")
-                    context = gr.JSON(label="Ranked passages")
-        with gr.Tab("Evaluation lab"):
-            gr.Markdown("## Measure before you tune\nCompare runs with different chunk sizes, k, and models on the same labeled dataset. Sample cases are a tiny smoke benchmark, not a general quality claim.")
-            dataset = gr.File(label="Evaluation JSON (optional; defaults to sample)", file_types=[".json"], type="filepath")
-            selected = gr.CheckboxGroup(list(METRICS), value=["Precision@k", "Recall@k", "MRR", "nDCG@k", "Answer token F1", "Latency"], label="Metrics")
-            help_text = gr.Markdown(explain(["Precision@k", "Recall@k", "MRR", "nDCG@k", "Answer token F1", "Latency"]))
-            gr.Markdown("Judge metrics run locally and add latency. Using the same answer and judge model can bias scores. Prefer a separate, stronger judge and human spot checks. Failed judgments remain missing and are excluded from means.")
+                with gr.Column(scale=1):
+                    history = gr.Chatbot(label="Conversation", height=520)
+                    question = gr.Textbox(label="Message", show_label=False, placeholder="Ask a question about your documents…")
+                    with gr.Row():
+                        send = gr.Button("Send", variant="primary")
+                        clear = gr.Button("Clear chat")
+                with gr.Column(scale=1):
+                    with gr.Group(elem_id="context-panel"):
+                        gr.Markdown("### Relevant context")
+                        context = gr.Markdown("Passages used to answer your question will appear here.", elem_id="context-passages")
+        with gr.Tab("Measurements"):
+            gr.Markdown("## Evaluation\nMeasure answer quality and retrieval, compare experiments, and inspect embeddings.")
+            with gr.Accordion("Models & retrieval settings", open=False):
+                with gr.Row():
+                    embedding = gr.Textbox(value="nomic-embed-text", label="Embedding model")
+                    model = gr.Textbox(value="qwen3.5:9b", label="Answer model")
+                    judge = gr.Textbox(value="qwen3.5:9b", label="Judge model")
+                with gr.Row():
+                    size = gr.Slider(200, 2000, value=700, step=100, label="Chunk size (characters)")
+                    overlap = gr.Slider(0, 400, value=100, step=25, label="Chunk overlap")
+                    k = gr.Slider(1, 12, value=4, step=1, label="Retrieved chunks (k)")
+                gr.Markdown("Prepare documents again after changing chunking or embedding settings. Each chat message retrieves independently.")
+            timing = gr.Markdown("Chat latency will appear here after a response.")
+            dataset = gr.File(label="Evaluation dataset · JSON (optional; defaults to sample)", file_types=[".json"], type="filepath")
+            selected = gr.CheckboxGroup(list(METRICS), value=defaults, label="Metrics to measure")
+            with gr.Accordion("What do these metrics mean?", open=False):
+                help_text = gr.Markdown(explain(defaults))
+            with gr.Accordion("How to interpret results", open=False):
+                gr.Markdown("The sample dataset is a smoke benchmark, not a general quality claim. Local model judges are fallible; prefer a separate stronger judge and human checks. Failed judgments are excluded from means and reported in success counts. Cosine similarity is proximity, not confidence. Model citations need review.")
             run = gr.Button("Run evaluation", variant="primary")
             summary = gr.Dataframe(label="Aggregate scores", interactive=False)
-            details = gr.Dataframe(label="Per-question results and judge reasons", interactive=False)
-            download = gr.File(label="Download reproducible run JSON")
-            gr.Markdown("### Compare experiments\nUpload saved run reports to compare means and settings. Compare matching corpus hashes and identical question sets; model judges may differ between runs.")
-            reports = gr.File(label="Saved run JSON reports", file_count="multiple", file_types=[".json"], type="filepath")
-            compare = gr.Button("Compare runs")
-            comparison = gr.Dataframe(label="Run comparison", interactive=False)
-        with gr.Tab("Embedding atlas"):
-            gr.Markdown("## Inspect the vector space\nColor identifies source documents; symbols identify retrieved chunks; a star marks the latest query. PCA is a lossy projection of normalized embeddings. Clusters do not establish embedding quality. Use labeled Recall@k and nDCG alongside this view. The title reports retained variance.")
-            plot = gr.Plot()
-        sample.click(lambda: sorted(str(p) for p in (ROOT / "data/corpus").glob("*.md")), outputs=files)
-        build.click(index_files, [files, embedding, size, overlap], [state, status, plot]).then(lambda: ([], None), outputs=[history, context])
+            with gr.Accordion("Per-question results & export", open=False):
+                details = gr.Dataframe(label="Answers, scores and judge reasons", interactive=False)
+                download = gr.File(label="Download run JSON")
+            with gr.Accordion("Compare experiments", open=False):
+                gr.Markdown("Compare saved runs using the same corpus hash and question set.")
+                reports = gr.File(label="Saved run JSON reports", file_count="multiple", file_types=[".json"], type="filepath")
+                compare = gr.Button("Compare runs")
+                comparison = gr.Dataframe(label="Run comparison", interactive=False)
+            with gr.Accordion("Vector visualization", open=False):
+                gr.Markdown("Color = source; symbols = retrieved chunks; star = latest query. PCA is a lossy projection; retained variance appears in the title. Clusters alone do not prove quality. Check labeled recall and nDCG.")
+                plot = gr.Plot()
+        empty_context = "Passages used to answer your question will appear here."
+        sample.click(lambda: sorted(str(p) for p in (ROOT / "data/corpus").glob("*.md")), outputs=files).then(
+            index_files, [files, embedding, size, overlap], [state, status, plot]).then(
+            lambda: ([], empty_context), outputs=[history, context])
+        build.click(index_files, [files, embedding, size, overlap], [state, status, plot]).then(
+            lambda: ([], empty_context), outputs=[history, context])
         inputs = [question, history, state, model, k]
         outputs = [question, history, context, plot, timing]
         send.click(chat, inputs, outputs)
         question.submit(chat, inputs, outputs)
-        clear.click(lambda: ([], None, ""), outputs=[history, context, timing])
+        clear.click(lambda: ([], empty_context, ""), outputs=[history, context, timing])
         compare.click(compare_runs, reports, comparison)
         selected.change(explain, selected, help_text)
         run.click(run_eval, [state, dataset, model, judge, k, selected], [summary, details, download])
     return demo
 
 if __name__ == "__main__":
-    create_app().queue(default_concurrency_limit=1).launch(server_name="127.0.0.1", share=False)
+    create_app().queue(default_concurrency_limit=1).launch(server_name="127.0.0.1", share=False, footer_links=[], theme=gr.themes.Soft(primary_hue="violet", neutral_hue="slate"), css="""
+.gradio-container { max-width: 1480px !important; }
+#context-panel { height: 520px; overflow-y: auto; padding: 20px; }
+#context-panel h3 { color: #c084fc; }
+#context-passages { line-height: 1.7; overflow-wrap: anywhere; }
+@media (max-width: 768px) { #context-panel { height: 360px; } }
+""")

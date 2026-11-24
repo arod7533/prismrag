@@ -14,12 +14,12 @@ ollama pull nomic-embed-text
 uv sync --locked --python 3.12
 uv run python app.py
 ```
-Open http://127.0.0.1:7860. Load the sample corpus, build the index, and ask a question. Model downloads require internet; inference stays local. You can substitute installed Ollama models in the settings. First inference can be slow.
+Open http://127.0.0.1:7860. Open Documents in Chat and choose Use sample documents, then ask a question. Upload your own files and choose Prepare documents to replace the sample corpus. Model downloads require internet; inference stays local. You can substitute installed Ollama models in the settings. First inference can be slow.
 
 ## Features
-- Chat beside ranked evidence, filenames, pages, cosine scores, and citations.
+- Two-tab interface: clean Chat beside readable context, and Measurements for evaluation, settings, experiment comparisons, latency, and vector visualization.
 - TXT, Markdown, text-based PDF ingestion; configurable chunking and exact cosine retrieval.
-- Evaluation tab with selectable metric definitions, per-case results, judge reasons, aggregate means, and downloadable JSON runs.
+- Measurements tab with selectable metric definitions, per-case results, judge reasons, aggregate means, and downloadable JSON runs.
 - PCA embedding atlas colored by source, with retrieved chunks and projected query.
 - Static GitHub Pages showcase and separate Python CI.
 
