@@ -31,7 +31,7 @@ Reports save automatically to gitignored `runs/`. They contain the actual questi
 ## Vector database and pipeline
 Documents → LangChain recursive character chunks → Ollama embeddings → **persistent local Chroma** → cosine nearest-neighbor retrieval → LangChain prompt → ChatOllama answer.
 
-Chroma collections are stored in gitignored `.chroma/`, keyed by the corpus/chunk fingerprint, embedding model name and installed model digest. Reopening unchanged data reuses stored vectors; changed data/model identity creates a different collection. Missing embeddings in an interrupted build are resumed. Chroma performs retrieval; NumPy normalizes stored vectors for the PCA display. Collections accumulate until removed manually; do not commit the database. This embedded single-process design is intended for a small local showcase, not a multi-worker production service.
+Chroma collections are stored in gitignored `.chroma/`, keyed by the corpus/chunk fingerprint, embedding model name and installed model digest. Reopening unchanged data reuses stored vectors; changed data/model identity creates a different collection. Missing embeddings in an interrupted build are resumed. Chroma performs retrieval; NumPy normalizes stored vectors for the PCA display. Collections accumulate until removed manually; do not commit the database. This embedded single-process design is intended for a small local portfolio app, not a multi-worker production service.
 
 The learning dashboard connects metrics to retrieval, generation, segmentation and speed, explains why each matters with examples, and proposes experiments from observed scores. Recommendations use simple review heuristics (for example, judge scores below 0.8); these are not calibrated pass/fail thresholds. Guidance never changes the pipeline automatically.
 
@@ -42,9 +42,9 @@ Segmentation diagnostics report minimum/median/maximum character counts, short c
 The app uses `qwen3.5:9b`, `nomic-embed-text`, 700-character chunks, 100-character overlap and top-k 4. Developers can change these constants in `app.py` and pipeline defaults. Restart after corpus changes. Loading state is shared through a process cache; chat and latest measurements are browser-session state. Baseline retrieval evaluations repeat per browser load, but document embeddings persist.
 
 ## Hosting
-[Repository](https://github.com/arod7533/prismrag) · [Static showcase](https://arod7533.github.io/prismrag/)
+[Repository](https://github.com/arod7533/prismrag)
 
-GitHub Pages serves the static `docs/` showcase; it cannot execute Python or Ollama. The live Gradio app runs locally. A public live demo requires a separately provisioned backend with authentication, resource limits and TLS. Keep Ollama private. The app binds to localhost. Document text and model inference stay local by default; package/model installation requires network access.
+The Gradio app runs locally with Ollama. The GitHub repository contains the source code and setup instructions. A public live demo requires a separately provisioned backend with authentication, resource limits and TLS. Keep Ollama private. The app binds to localhost. Document text and model inference stay local by default; package/model installation requires network access.
 
 ## Checks
 ```sh
