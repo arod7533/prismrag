@@ -1,0 +1,2 @@
+# Deployment
+GitHub Pages serves static HTML, CSS, and JavaScript. It cannot execute a Python Gradio backend or run Ollama. PrismRAG runs its interactive Python application locally with Ollama. A separate static portfolio showcase can be hosted on GitHub Pages. Hosting live inference requires a server with sufficient memory and access to Ollama; do not expose an unauthenticated Ollama service to the internet.

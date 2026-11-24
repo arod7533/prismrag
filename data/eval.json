@@ -1,0 +1,23 @@
+[
+  {
+    "question": "What does chunk overlap do?",
+    "reference": "Chunk overlap preserves context across boundaries.",
+    "relevant_sources": [
+      "retrieval.md"
+    ]
+  },
+  {
+    "question": "How do recall and precision differ?",
+    "reference": "Recall measures the fraction of relevant sources retrieved. Precision measures the fraction of retrieved sources that are relevant.",
+    "relevant_sources": [
+      "evaluation.md"
+    ]
+  },
+  {
+    "question": "Can GitHub Pages run the Python application and Ollama?",
+    "reference": "No. GitHub Pages serves static files. Python and Ollama require a running backend.",
+    "relevant_sources": [
+      "deployment.md"
+    ]
+  }
+]

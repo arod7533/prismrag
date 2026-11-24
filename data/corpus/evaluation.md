@@ -1,0 +1,2 @@
+# Evaluation
+Recall measures the fraction of labeled relevant sources retrieved. Precision measures the fraction of retrieved sources that are relevant. MRR rewards finding a relevant source early. nDCG rewards ordering relevant sources near the top. Faithfulness checks whether claims are supported by retrieved evidence. A fluent answer can still contain unsupported claims. Local model judges are fallible and need human review.

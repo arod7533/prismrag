@@ -1,0 +1,2 @@
+# Retrieval
+Retrieval augmented generation splits documents into overlapping chunks, embeds each chunk as a vector, and retrieves the closest chunks for a question. Cosine similarity compares vector directions. Chunk overlap preserves context across boundaries. Larger k can improve evidence coverage but introduce irrelevant passages. PrismRAG normalizes vectors before computing dot products, making scores cosine similarities.
